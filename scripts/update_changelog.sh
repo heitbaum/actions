@@ -27,7 +27,7 @@ EOF
     var_pr="$(grep -oE '#[0-9]+' <<<"$line")"
 
     # PR message
-    var_message="$(grep -oP '(?<=\\n\\n)(.*)(?=\")' <<<"$line")"
+    var_message="$(grep -oP '(?<=\\n\\n)(.*)(?=\")' <<<"$line" || true)"
 
     # PR date at merge
     var_date="$(grep -oP '(?<=^")[0-9-]{10}' <<<"$line")"
