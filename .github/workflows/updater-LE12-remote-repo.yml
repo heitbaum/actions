@@ -1,0 +1,84 @@
+name: update-binary-addons-LE12-remote-repo
+on:
+  workflow_dispatch:
+    inputs:
+      input_addon-version:
+        description: "Add-on version to update"
+        default: "12.0"
+        required: true
+        type: string
+jobs:
+  update_addon_repo:
+    name: Update Addon Repo
+    runs-on: ubuntu-latest
+    env: 
+      GH_API_KEY: ${{ secrets.GH_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: libreelec-12.0
+          fetch-depth: 2
+          repository: "LibreELEC/LibreELEC.tv"
+      - name: Update Binary Addons
+        id: update_binary_addons
+        continue-on-error: true
+        run: |
+          echo "------------------1---------------------"
+          pwd
+          git status
+          git remote show origin
+          echo "------------------2---------------------"
+          ls -lah
+          echo "------------------3---------------------"
+          echo "Updating Add-on version ${{ github.event.inputs.input_addon-version }}"
+          export GITHUB_API_TOKEN="$GH_API_KEY"
+          temp_file=$(mktemp)
+          ./tools/mkpkg/update_binary-addons -x master > "${temp_file}" | true
+          echo "-------------------1--------------------"
+          echo "-------------------2--------------------"
+
+          git_commit_msg=$(cat ${temp_file} | grep "^UPDATED " | sed 's/^UPDATED /- /' | sed 's/ from /: update /')
+          echo "git_commit_msg<<EOF" >> $GITHUB_OUTPUT
+          echo "${git_commit_msg}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "------------------1---------------------"
+          pwd
+          git status
+          echo "------------------2---------------------"
+
+      - name: Get SHA of the branch that triggered the workflow run
+        id: head_branch
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=${sha}" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.LIBREELECBOT_GITHUB_TOKEN }}
+          commit-message: |
+            kodi-binary-addons: update to latest versions
+
+            This commit updates kodi-binary-addons with ./tools/mkpkg/update_binary-addons
+
+            ${{ steps.update_binary_addons.outputs.git_commit_msg }}
+          committer: LibreELEC Bot <libreelec-bot@libreelec.tv>
+          author: LibreELEC Bot <libreelec-bot@libreelec.tv>
+          reviewers: LibreELEC Bot <libreelec-bot@libreelec.tv>
+          labels: 'github-action'
+          signoff: false
+          branch-suffix: short-commit-hash
+          delete-branch: true
+          title: "kodi-binary-addons: update to latest versions"
+          body: |
+            This pull-request was auto-generated 
+          draft: true
+          add-paths: |
+            packages/mediacenter/kodi-binary-addons
+
+      - name: Clean up
+        continue-on-error: true
+        run: |
+          rm "${temp_file}"
