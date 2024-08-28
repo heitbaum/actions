@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.LIBREELECBOT_GITHUB_TOKEN }}
-          repository: devtest170/LibreELEC.tv
+          repository: heitbaum/LibreELEC.tv
       - name: Update Binary Addons
         id: update_binary_addons
         continue-on-error: true
@@ -45,7 +45,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.LIBREELECBOT_GITHUB_TOKEN }}
-          push-to-fork: heitbaum/devtest170
+          push-to-fork: devtest170/abc
           commit-message: |
             kodi-binary-addons: update to latest versions
 
