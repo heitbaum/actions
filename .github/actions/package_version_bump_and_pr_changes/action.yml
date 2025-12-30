@@ -1,0 +1,93 @@
+# If you intend to use a composite action (which runs as a step), it
+# must have an action.yml file in its directory, and that directory
+# should typically be under .github/actions/ or a custom location
+# you specify.
+inputs:
+  PACKAGE_NAME:
+    description: abc
+    required: true
+  PACKAGE_VERSION:
+    description: abc
+    required: true
+  GITHUB_TOKEN:
+    description: abc
+    required: true
+  repository_owner:
+    description: abc
+    required: true
+
+name: automated-package-update
+description: 'test'
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        repository: ${{ inputs.repository_owner }}/LibreELEC.tv
+        path: LibreELEC.tv
+    - name: Configure git
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        git config user.name "LibreELECBot"
+        git config user.email "LibreELECBot@users.noreply.github.com"
+    - name: Normalize version
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        # shorten the version if it is a git sha256 hash
+        # add a full version variable as well
+        PACKAGE_VERSION="${{ inputs.PACKAGE_VERSION }}"
+        PACKAGE_VERSION_FULL="${{ inputs.PACKAGE_VERSION }}"
+        if [[ "${PACKAGE_VERSION}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+          # Git SHA-256 hash to short hash
+          PACKAGE_VERSION="${PACKAGE_VERSION:0:7}"
+        fi
+        # export vars and debug output
+        echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
+        echo "PACKAGE_VERSION_FULL=${{ inputs.PACKAGE_VERSION }}" >> $GITHUB_ENV
+        echo "PACKAGE_VERSION: ${PACKAGE_VERSION}"
+        echo "PACKAGE_VERSION_FULL: ${PACKAGE_VERSION_FULL}"
+    - name: Run update script
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        echo "running update for package..."
+        echo "package name: ${{ inputs.PACKAGE_NAME }}"
+        echo "package version: ${{ env.PACKAGE_VERSION_FULL }}"
+        ./tools/update-pkg ${{ inputs.PACKAGE_NAME }} ${{ env.PACKAGE_VERSION_FULL }}
+    - name: Push branch
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        git checkout -b pr-automated-${{ inputs.PACKAGE_NAME }}-${PACKAGE_VERSION}
+        git push -u origin pr-automated-${{ inputs.PACKAGE_NAME }}-${PACKAGE_VERSION}
+    - name: Create Pull Request
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        # get the LE base version
+        LE_VERSION=$(sed -nE 's/^[[:space:]]*OS_VERSION="([^"]+)".*/\1/p' distributions/LibreELEC/version)
+        # create the pr
+        gh pr create \
+          --repo ${{ inputs.repository_owner }}/LibreELEC.tv \
+          --base master \
+          --head pr-automated-${{ inputs.PACKAGE_NAME }}-${PACKAGE_VERSION} \
+          --title "[LE${LE_VERSION}] ${{ inputs.PACKAGE_NAME }}: update to ${PACKAGE_VERSION}" \
+          --body "Automated update of ${{ inputs.PACKAGE_NAME }} to version ${PACKAGE_VERSION} using tools/update-pkg." \
+          --label "LE${LE_VERSION}" \
+          --label "UPDATE" \
+          --label "AUTOMATED"
+    - name: Test run output
+      shell: bash
+      run: |
+        cd LibreELEC.tv
+        # testrun output, no changes pushed or PR created
+        LE_VERSION=$(sed -nE 's/^[[:space:]]*OS_VERSION="([^"]+)".*/\1/p' distributions/LibreELEC/version)
+         echo "create a PR"
+         echo "branch name: pr-automated-${{ inputs.PACKAGE_NAME }}-${PACKAGE_VERSION}"
+         echo "title: [LE${LE_VERSION}] ${{ inputs.PACKAGE_NAME }}: update to ${PACKAGE_VERSION}"
+         echo "summary: Automated update of ${{ inputs.PACKAGE_NAME }} to version ${PACKAGE_VERSION} using tools/update-pkg."
+         echo "label: LE${LE_VERSION}"
