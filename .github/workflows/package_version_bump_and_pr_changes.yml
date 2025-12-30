@@ -14,7 +14,7 @@ jobs:
   automated-package-update:
     runs-on: ubuntu-24.04
     # Hard stop if not running in the intended repository
-    if: github.repository == 'LibreELEC/LibreELEC.tv'
+    if: github.repository == 'heitbaum/actions'
     permissions:
       contents: write
       pull-requests: write
