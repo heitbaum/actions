@@ -11,7 +11,7 @@ jobs:
   check-package-update:
     runs-on: ubuntu-24.04
     # Hard stop if not running in the intended repository
-    if: github.repository == 'LibreELEC/actions'
+    if: github.repository == 'heitbaum/actions'
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
