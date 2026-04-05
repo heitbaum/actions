@@ -1,9 +1,10 @@
-name: check for repo update and trigger update workflow
+name: Check for repo update and trigger update workflow
+
 on:
   workflow_dispatch:
     inputs:
       repository:
-        description: "select a repository"
+        description: Repository to update
         required: true
         type: choice
         options:
@@ -18,55 +19,53 @@ on:
           - LibreELEC/script.config.vdr
           - LibreELEC/service.libreelec.settings
           - LibreELEC/wlan-firmware
+
 jobs:
   check-package-update:
     runs-on: ubuntu-24.04
-    # Hard stop if not running in the intended repository
     if: github.repository == 'LibreELEC/actions'
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout repository
+      - name: Checkout LibreELEC.tv
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
           repository: LibreELEC/LibreELEC.tv
           path: LibreELEC-upstream
+
       - name: Get latest commit hash from the repository
-        env:
-          REPO: ${{ github.event.inputs.repository }}
         id: set-matrix
         shell: bash
+        env:
+          REPO: ${{ github.event.inputs.repository }}
         run: |
           echo "Selected repo: $REPO"
           REPO_NAME=$(echo "$REPO" | cut -d'/' -f2)
-          # if repo name is not package name, map it accordingly
           case "$REPO" in
             "LibreELEC/service.libreelec.settings")
               REPO_NAME="LibreELEC-settings"
               ;;
           esac
-          echo "---"
           updated_packages="${REPO_NAME}"
-          echo $updated_packages
-          echo "---"
           pair=$(echo "$updated_packages" | jq -Rn -c '[inputs | split(" ")] | map({ name: .[0], version: (.[1] // "") })')
           echo "matrix=$pair" >> $GITHUB_OUTPUT
-          echo $pair
+
       - name: Job summary
         shell: bash
         run: |
           echo "### 📌 Updating these Packages" >> $GITHUB_STEP_SUMMARY
           {
-            # Use jq to output a markdown table
             echo "| Package | Version |"
             echo "|---------|---------|"
             echo '${{ steps.set-matrix.outputs.matrix }}' | jq -r '.[] | "| \(.name) | \(.version) |"'
           } >> "$GITHUB_STEP_SUMMARY"
+
   call-package-update:
     needs: check-package-update
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.check-package-update.outputs.matrix) }}
     steps:
@@ -75,11 +74,13 @@ jobs:
         with:
           fetch-depth: 1
           repository: LibreELEC/actions
-      - name: Debug output
+
+      - name: Log matrix entry
         run: |
           echo "Package:  ${{ matrix.name }}"
           echo "Version:  ${{ matrix.version }}"
-      - name: Call composite function
+
+      - name: Package version bump and PR
         uses: ./.github/actions/package_version_bump_and_pr_changes
         env:
           GH_TOKEN: ${{ secrets.LEBOT_PAT }}
