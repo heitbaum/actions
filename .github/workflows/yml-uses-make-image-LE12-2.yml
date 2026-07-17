@@ -257,7 +257,14 @@ jobs:
             logfile="${artifactdir}/${{ env.TARGETBUILDDIR }}-${pkgsafe}-$(basename "${logpath}")"
             text+="step [${step}/${total}] ${pkg}\n"
             if [ -f "${logfile}" ]; then
-              reason=$(grep -ohE "APPLY PATCH|CONFIGURE|CMAKE|UNPACK" "${logfile}" | tail -1)
+              clean=$(sed -E 's/\x1b\[[0-9;]*m//g' "${logfile}")
+              op=$(grep -oE "APPLY PATCH|CONFIGURE|CMAKE|UNPACK" <<< "${clean}" | tail -1)
+              subpkg=$(grep -oE "UNPACK[[:space:]]+[^[:space:]]+" <<< "${clean}" | tail -1 | awk '{ print $2 }')
+              reason="${op}${subpkg:+ ${subpkg}}"
+              if [ "${op}" = "APPLY PATCH" ]; then
+                patch=$(grep "APPLY PATCH" <<< "${clean}" | tail -1 | awk '{ print $NF }')
+                reason="${reason}${patch:+ (${patch})}"
+              fi
               [ -n "${reason}" ] && text+="reason for failure - ${reason}\n"
             fi
           done <<< "${failed_lines}"

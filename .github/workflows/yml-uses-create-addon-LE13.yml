@@ -248,7 +248,14 @@ jobs:
               if echo "${logtail}" | grep -qE "^FAILED:|command not found"; then
                 reason="BUILD"
               else
-                reason=$(echo "${logtail}" | grep -ohE "APPLY PATCH|CONFIGURE|CMAKE|UNPACK" | tail -1)
+                clean=$(sed -E 's/\x1b\[[0-9;]*m//g' "${logfile}")
+                op=$(grep -oE "APPLY PATCH|CONFIGURE|CMAKE|UNPACK" <<< "${clean}" | tail -1)
+                subpkg=$(grep -oE "UNPACK[[:space:]]+[^[:space:]]+" <<< "${clean}" | tail -1 | awk '{ print $2 }')
+                reason="${op}${subpkg:+ ${subpkg}}"
+                if [ "${op}" = "APPLY PATCH" ]; then
+                  patch=$(grep "APPLY PATCH" <<< "${clean}" | tail -1 | awk '{ print $NF }')
+                  reason="${reason}${patch:+ (${patch})}"
+                fi
               fi
               if [ -z "${reason}" ]; then
                 reason=$(echo "${logtail}" | grep -oE "cannot stat '[^']+'" | tail -1 | sed "s|cannot stat '||;s|.*/||;s|'||")
